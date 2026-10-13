@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The dp-hello logic: parsing, validation, greeting construction, and output encoding. -->
+  <PropertyGroup>
+    <RootNamespace>DpHello</RootNamespace>
+    <!-- The same RIDs as DpHello.Cli, whose RID-specific publish restores this project too. -->
+    <RuntimeIdentifiers>linux-x64;linux-arm64;osx-x64;osx-arm64;win-x64;win-arm64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+</Project>

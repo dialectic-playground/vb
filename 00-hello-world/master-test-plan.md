@@ -4,33 +4,32 @@
 | :-- | :-- |
 | Project | `00-hello-world` |
 | Tools | dp-hello |
-| Implementation language | *py / rs / go* |
-| Author | *your name* |
-| Version / date | *0.1 — YYYY-MM-DD* |
+| Implementation language | Visual Basic (VB.NET, .NET 10) |
+| Author | Brandon Perkins (with Claude Code) |
+| Version / date | 1.0 — 2026-10-13 |
 | Standard | Structure adapted from IEEE 829 / ISO/IEC/IEEE 29119-3 |
-
-> **Purpose of this document.** The MTP defines *how* you will build confidence that the tool
-> meets the SRS on all three platforms: test levels, techniques, environments, entry and exit
-> criteria, and the actual test cases you will write in addition to the supplied black-box
-> suite.
->
-> Replace every *italic prompt* below. Delete the prompts when you are done.
 
 ## 1. Introduction and scope
 
 ### 1.1 Objectives
-*What does "tested enough" mean for this project? Tie the answer to SRS acceptance criteria.*
+"Tested enough" means: every SRS acceptance criterion (FR-01 … FR-11) is exercised by an
+automated test, every CONV-13 diagnostic is checked byte for byte, the public and hidden
+black-box suites pass on Linux, macOS, and Windows, and the RTM shows every applicable
+requirement as Verified.
 
 ### 1.2 In scope / out of scope
 | In scope | Out of scope |
 | :-- | :-- |
-| *every FR/NFR in the SRS, on Linux, macOS, and Windows* | *…* |
+| Every FR/NFR in the SRS and the applicable CONV rules, on Linux, macOS, and Windows | File, path, and stdin behavior (CONV-04, CONV-16 … CONV-21: not applicable) |
+| The `make` contract (all BASE-MAKEFILE targets, install/uninstall round trip) | Terminal rendering of non-ASCII names (a console concern, not the tool's) |
+| Start-up time and memory (NFR-02, CONV-31) | Invalid UTF-8 byte sequences in POSIX arguments (decoded to U+FFFD by .NET; see HLD §8) |
 
 ## 2. Test items
 
 | Item | Version / location |
 | :-- | :-- |
-| dp-hello | `assignment/src/<lang>/` at commit *…* |
+| dp-hello | `00-hello-world/src/` on branch `feat/00-hello-world` |
+| Unit tests | `src/DpHello.Tests/` (40 methods, 97 cases) |
 | Public black-box suite | `tests/public/` (10 tests) |
 | Hidden black-box suite | `tests/private/` (10 tests, run by CI) |
 
@@ -38,84 +37,112 @@
 
 | Level | Purpose | Technique(s) | Tooling | Owner |
 | :-- | :-- | :-- | :-- | :-- |
-| Unit | *verify functions in isolation* | *equivalence partitioning, boundary-value analysis* | *the language's standard unit-test framework* | *you* |
-| Integration | *components working together (e.g. parser → core → output)* | *…* | *…* | *you* |
-| System (black-box) | *the specified CLI behavior, byte-exact* | *specification-based* | `make test` → `run-tests.py` | *you* |
-| Acceptance | *hidden suite passes on all OSes* | *—* | CI `make test-hidden` | *CI* |
-| Static analysis | *style, lint, types* | *—* | `make lint` | *you / CI* |
+| Unit | Parser, validator, greeting, output in isolation | Equivalence partitioning, boundary values, error guessing | xUnit 2.9 (`dotnet test`, `make test`) | Developer |
+| Integration | Parser → validator → greeting → encoding through the pure core | Specification-based, byte-exact assertions | `CommandLineToolTests` (xUnit) | Developer |
+| System (black-box) | The specified CLI behavior, byte-exact | Specification-based | `make test` → `run-tests.py` | Developer |
+| Acceptance | Hidden suite on all OSes | — | CI `make check` (runs `test-hidden`) | CI |
+| Static analysis | Compiler and analyzer warnings, formatting | — | `make lint`: build with TreatWarningsAsErrors + `dotnet format --verify-no-changes` | Developer / CI |
 
 ## 4. Test design
 
 ### 4.1 Equivalence partitions and boundaries
-*For each input (options, operands, stdin, environment, file states), list the valid and
-invalid partitions and the boundary values.*
 
 | Input | Valid partitions | Invalid partitions | Boundaries |
 | :-- | :-- | :-- | :-- |
-| *…* | | | |
+| COUNT | ASCII digits with value 1–1000, leading zeros | empty; non-digits (sign, space, `.`, `e`, Unicode digits); 0; > 1000; huge digit strings | 0, 1, 1000, 1001, `000`, `0001000`, 23 digits |
+| NAME | any non-empty string (spaces, `!`, `-x`, non-ASCII) | empty | `''`, `' '` |
+| Option tokens | `-n`, `-c`, `--name`, `--count`, `--help`, `--version`, with attached or separate values | unknown short/long, abbreviations, `=value` on flags, missing values | `-` (operand), `--` (terminator), `--name=` (empty), `---name` |
+| Operands | none | any word, any token after `--` | `--` alone (no operand) |
+| Order | `--help`/`--version` before any syntax error | a syntax error before `--help` | `extra --help`, `--count 0 --help`, `-x --help` |
 
 ### 4.2 Additional test cases (beyond the supplied suite)
-*Write at least ten of your own cases. Cover edge cases, error situations, and
-platform-specific behavior (Principle 14). Give each one an ID such as `T-01`.*
 
 | ID | Requirement(s) | Preconditions | Steps / command | Expected result | Level |
 | :-- | :-- | :-- | :-- | :-- | :-- |
-| *T-01* | *FR-…* | *…* | *…* | *…* | *unit* |
+| T-01 | FR-07, CONV-12 | — | `Run("extra", "--help")`, `Run("--count", "0", "--help")` | Help text, status 0 | unit (`CommandLineToolTests.HelpIsTheUserManualText`) |
+| T-02 | CONV-12 | — | `Parse("-x", "--help")` | `invalid option -- 'x'` | unit (`ArgumentParserTests.SyntaxErrorBeforeHelpIsReported`) |
+| T-03 | FR-06 | — | `Run("-c","0","-c","1","-n","","-n","B")` | `Hello, B!`, status 0 | unit (`CommandLineToolTests.OnlyTheWinningValueIsValidated`) |
+| T-04 | FR-04 | — | counts `007`, `0001000`, `1000` | 7, 1000, 1000 | unit (`ValidatorTests.ValidCounts`) |
+| T-05 | FR-05, NFR-03 | — | count `99999999999999999999999`, `٣`, `３`, `+1`, ` 1` | `invalid argument '<v>' for '--count'` | unit (`ValidatorTests.InvalidCountsAreRejectedWithTheValueAndSpelling`) |
+| T-06 | FR-02 | — | `--name=-x`, `-n-x`, `--name --help` | name `-x` / `--help` | unit (`ArgumentParserTests.AttachedValuesAreVerbatim`, `.SeparateValueMayStartWithDash`) |
+| T-07 | CONV-07 | — | `-nc3` | name `c3` | unit (`ArgumentParserTests.ShortOptionConsumesRestOfBundle`) |
+| T-08 | CONV-09, FR-09 | — | `--`, `-- -n`, `-- --help` | no operand; `extra operand '-n'`; `extra operand '--help'` | unit (`ArgumentParserTests.TerminatorMakesFollowingTokensOperands`, `CommandLineToolTests.UsageErrorsWriteNothingToStdout`) |
+| T-09 | CONV-05 | — | `--name Zoë` | bytes `Hello, Zo\xC3\xAB!\n` | unit (`CommandLineToolTests.NonAsciiNameIsUtf8`) |
+| T-10 | CONV-13 | — | `-ë`, `-😀` | `invalid option -- 'ë'`, whole code point | unit (`ArgumentParserTests.SyntaxErrors`) |
+| T-11 | CONV-25 | — | write to a stream that throws `IOException`; `dp-hello -c 1000 > /dev/full` | `WriteAll` returns False; silent exit 141 | unit (`OutputTests.WriteAllReportsAFailingStream`) + manual |
+| T-12 | NFR-01, CONV-03 | — | `--count=1000` | 14 000 bytes, no CR | unit (`CommandLineToolTests.MaximumCountPrintsOneThousandLines`) |
+| T-13 | NFR-06 | built | `make roundtrip` | install then uninstall leave the prefix empty | system (CI, 3 OSes) |
 
 ### 4.3 Negative and robustness testing
-*Cover invalid options, missing files, permission errors, empty input, very large input, and
-binary input. Show how each is tested.*
+Every CONV-13 row is a `SyntaxErrors`/`ValidatorTests` case and an end-to-end case in
+`UsageErrorsWriteNothingToStdout`, which also asserts empty stdout and status 2. Robustness
+cases: overlong digit strings (saturating parser), unpaired surrogates
+(`EncodeReplacesUnpairedSurrogateInsteadOfThrowing`), non-BMP option letters, a broken or
+closed output stream. Missing files, permissions, and stdin do not apply (the tool reads
+none).
 
 ### 4.4 Performance and resource testing
-*Give memory and time checks for each NFR (e.g. "a 2 GiB input completes in under 60 s using
-under 64 MiB RSS") and say how you measure them.*
+Measured in the toolchain container (Fedora host, x86-64) with a Python harness that runs
+each command 20 times and reports the median wall time and the children's peak RSS
+(`resource.getrusage(RUSAGE_CHILDREN).ru_maxrss`):
+
+| Program | Median time | Peak RSS |
+| :-- | :-- | :-- |
+| Empty VB program (same publish settings): the CONV-31 baseline | 19.5 ms | 21.5 MiB |
+| `dp-hello` | 28.4 ms | 24.8 MiB |
+| `dp-hello -c 1000 -n Zoë` | 29.3 ms | 24.9 MiB |
+
+Result: well under the 300 ms managed-runtime budget (and the 100 ms native one), and
+about 3.4 MiB above the runtime baseline, far below 32 MiB (even the absolute peak is).
 
 ## 5. Test environments
 
 | Environment | OS / version | Toolchain | How provisioned |
 | :-- | :-- | :-- | :-- |
-| Local | *…* | *…* | *…* |
-| CI | ubuntu-latest, macos-latest, windows-latest | *…* | `shared/ci/cross-platform-ci.yml` |
+| Local / container | Debian (mcr.microsoft.com/dotnet/sdk:10.0, digest-pinned) on Fedora with Podman | .NET SDK 10.0.4xx, make, python3 | `make check` (`Containerfile`) |
+| CI | ubuntu-latest, macos-latest, windows-latest | .NET SDK 10.0.x (actions/setup-dotnet), Python 3.12, GNU Make | `.github/workflows/ci.yml` (`make check roundtrip`) |
 
 ## 6. Entry and exit criteria
-
-- **Entry:** *e.g. the HLD/LLD are approved, `make all` succeeds, and `make lint` is clean.*
-- **Exit:** *e.g. all public and hidden black-box tests pass on all three OSes, unit-test line
-  coverage is at least 80%, there are no open severity-1/2 defects, and the RTM shows every
-  requirement as Verified.*
-- **Suspension / resumption:** *…*
+- **Entry:** HLD/LLD written; `make all` succeeds; `make lint` is clean.
+- **Exit:** all unit tests and all public and hidden black-box tests pass on all three OSes
+  in CI; `make lint` and `make format` leave no diff; `make roundtrip` passes natively;
+  every applicable RTM row is Verified.
+- **Suspension / resumption:** suspend on any CI toolchain failure unrelated to the code
+  (runner image change); resume after pinning or adapting the setup step.
 
 ## 7. Defect management
-
-*Describe how you record a defect (GitHub issue template, severity scale), how you
-re-test a fix, and how you prevent regressions (a new unit test for every fixed defect).*
+Defects are GitHub issues in `dialectic-playground/vb` labeled with severity; the fix PR
+references the issue, adds a regression unit test that fails before the fix, and must pass
+CI on all three OSes.
 
 | Severity | Definition |
 | :-- | :-- |
-| 1 — Critical | *crash, data loss, or wrong output on a mainline path* |
-| 2 — Major | *…* |
-| 3 — Minor | *…* |
+| 1 — Critical | Crash, stack trace, or wrong stdout bytes on a mainline path |
+| 2 — Major | Wrong diagnostic text or exit status; any OS-specific output difference |
+| 3 — Minor | Documentation, build ergonomics, or performance within budget |
 
 ## 8. Schedule and deliverables
 
 | Milestone | Deliverable | Target date |
 | :-- | :-- | :-- |
-| *Design complete* | *hld.md, lld.md* | |
-| *Implementation complete* | *src/, unit tests* | |
-| *Verification complete* | *RTM all Verified, CI green* | |
+| Design complete | `hld.md`, `lld.md` | 2026-10-13 |
+| Implementation complete | `src/`, unit tests, Makefile hooks | 2026-10-13 |
+| Verification complete | RTM all Verified, CI green | 2026-10-13 |
 
 ## 9. Risks and contingencies
 
 | Risk | Mitigation |
 | :-- | :-- |
-| *Windows-only failure discovered late* | *run CI on all OSes from the first commit* |
+| Windows-only failure discovered late | CI runs all three OSes on every push |
+| Apphost cannot find the .NET runtime under the runner's minimal environment | CI registers `/etc/dotnet/install_location`; Windows uses the default install location |
+| SDK patch drift between the container and native CI breaks locked restore | No SDK-versioned implicit packages (single-file analyzer disabled); `global.json` rolls forward within 10.0 |
 
 ## 10. Test summary (complete at the end)
 
 | Metric | Value |
 | :-- | :-- |
-| Unit tests (pass / total) | |
-| Coverage (line / branch) | |
-| Public black-box (pass / 10) | |
-| Hidden black-box (pass / 10, from CI) | |
-| Open defects by severity | |
+| Unit tests (pass / total) | 97 / 97 |
+| Coverage (line / branch) | Not measured with a tool; every public function and every diagnostic has a test |
+| Public black-box (pass / 10) | 10 / 10 (container, Linux, macOS, Windows) |
+| Hidden black-box (pass / 10, from CI) | 10 / 10 |
+| Open defects by severity | 0 / 0 / 0 |
