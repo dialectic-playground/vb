@@ -1,19 +1,24 @@
-# 00-hello-world: Standard Terminal Hello World
+# 00-hello-world: Standard Terminal Hello World, in Visual Basic (VB.NET on .NET 10).
 #
-# Project Makefile template. It extends the universal build contract in
-# shared/templates/BASE-MAKEFILE, which defines the standard targets:
+# Extends the universal build contract in shared/templates/BASE-MAKEFILE:
 #
 #   make all | install | uninstall | test | check | lint | format | clean | distclean
 #   make test-hidden | grade | help
 #
-# A language implementation repository copies this file next to its sources, sets BIN_DIR,
-# fills in each DP_* hook with its toolchain's commands, and points CURRICULUM_ROOT at its
-# checkout of sdlc-curriculum (for example a git submodule). Hooks that are left empty make
-# their target fail with an explanation. `make help` shows which hooks are defined.
+# Toolchain: the dotnet CLI (SDK 10.0, pinned by global.json). DpHello.sln holds three projects
+# under src/: DpHello (class library: parsing, validation, greeting, output encoding),
+# DpHello.Cli (the console app, assembly and apphost name dp-hello), and DpHello.Tests (xUnit).
+# Directory.Build.props enables Option Strict/Explicit/Infer, TreatWarningsAsErrors, the
+# recommended .NET analyzers, and NuGet lock files (packages.lock.json, restored in locked mode).
+#
+# Build: a framework-dependent, single-file publish for the current platform puts one native
+# apphost, bin/dp-hello (bin/dp-hello.exe on Windows), into BIN_DIR. It needs the .NET 10
+# runtime, found through DOTNET_ROOT or the standard install location.
+#
+# Install copies that executable to $(BINDIR); uninstall removes it.
 #
 # Container-first: goals run in the toolchain container built from the repository's
-# Containerfile (podman, then docker, then local; override with DP_RUNTIME). The image needs
-# the language toolchain, make, and python3 >= 3.11. Use DP_RUNTIME=local for native builds.
+# Containerfile (podman, then docker, then local; override with DP_RUNTIME).
 
 PROJECT := 00-hello-world
 TOOLS   := dp-hello
@@ -21,17 +26,52 @@ TOOLS   := dp-hello
 # Path to the sdlc-curriculum checkout (the specs, test suites, and runner live there).
 CURRICULUM_ROOT ?= ../sdlc-curriculum
 
-# Directory that contains the built executables after `make all`, e.g. build/bin.
-BIN_DIR :=
+DOTNET   ?= dotnet
+SOLUTION := DpHello.sln
+CLI      := src/DpHello.Cli/DpHello.Cli.vbproj
 
-# Language-specific commands. Use $(TOOLS), $(EXE), $(PREFIX), and $(BINDIR) as needed.
-DP_BUILD     =
-DP_INSTALL   =
-DP_UNINSTALL =
-DP_UNIT_TEST =
-DP_LINT      =
-DP_FORMAT    =
-DP_CLEAN     =
-DP_DISTCLEAN =
+# Directory that contains the built executables after `make all`.
+BIN_DIR := bin
+
+RESTORE = $(DOTNET) restore $(SOLUTION) --locked-mode
+
+define DP_BUILD
+$(RESTORE)
+$(DOTNET) publish $(CLI) --configuration Release --use-current-runtime --no-restore --output $(BIN_DIR)
+endef
+
+define DP_UNIT_TEST
+$(RESTORE)
+$(DOTNET) test $(SOLUTION) --configuration Release --no-restore
+endef
+
+# The build fails on any compiler or analyzer warning (TreatWarningsAsErrors), and
+# dotnet format fails on any whitespace, style, or analyzer change it would make.
+define DP_LINT
+$(RESTORE)
+$(DOTNET) build $(SOLUTION) --configuration Release --no-restore
+$(DOTNET) format $(SOLUTION) --verify-no-changes --no-restore
+endef
+
+define DP_FORMAT
+$(RESTORE)
+$(DOTNET) format $(SOLUTION) --no-restore
+endef
+
+define DP_INSTALL
+mkdir -p "$(BINDIR)"
+cp "$(BIN_DIR)/dp-hello$(EXE)" "$(BINDIR)/dp-hello$(EXE)"
+chmod +x "$(BINDIR)/dp-hello$(EXE)"
+"$(BINDIR)/dp-hello$(EXE)" --version
+endef
+
+DP_UNINSTALL = rm -f "$(BINDIR)/dp-hello$(EXE)"
+
+define DP_CLEAN
+rm -rf $(BIN_DIR) src/*/bin src/*/obj TestResults src/*/TestResults
+endef
+
+# The NuGet package cache lives in the user's home (~/.nuget), not in the project.
+DP_DISTCLEAN = rm -rf .vs
 
 include $(CURRICULUM_ROOT)/shared/templates/BASE-MAKEFILE

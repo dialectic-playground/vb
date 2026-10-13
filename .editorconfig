@@ -18,3 +18,7 @@ trim_trailing_whitespace = false
 
 [{Makefile,BASE-MAKEFILE,*.mk,*.tmpl}]
 indent_style = tab
+
+# Repository-specific: Visual Basic sources use four-space indentation (dotnet format checks it).
+[*.vb]
+indent_size = 4

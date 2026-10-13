@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The dp-hello executable: a thin shell around DpHello.CommandLineTool.Run. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>dp-hello</AssemblyName>
+    <RootNamespace>DpHello.Cli</RootNamespace>
+    <StartupObject>DpHello.Cli.Program</StartupObject>
+    <!-- Framework-dependent single-file publish: BIN_DIR holds one native apphost, dp-hello. -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <!-- The analyzer would add an implicit Microsoft.NET.ILLink.Tasks package whose version
+         follows the installed SDK, which would break locked-mode restore across SDK patches. -->
+    <EnableSingleFileAnalyzer>false</EnableSingleFileAnalyzer>
+    <!-- Every supported RID, so packages.lock.json is identical on every OS (locked mode). -->
+    <RuntimeIdentifiers>linux-x64;linux-arm64;osx-x64;osx-arm64;win-x64;win-arm64</RuntimeIdentifiers>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <TieredPGO>true</TieredPGO>
+    <PublishDocumentationFile>false</PublishDocumentationFile>
+    <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DpHello\DpHello.vbproj" />
+  </ItemGroup>
+
+</Project>
