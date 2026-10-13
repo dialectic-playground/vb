@@ -16,7 +16,7 @@ This repository implements the eleven projects of the
 specified to the byte by the curriculum and verified by its black-box tests on Linux, macOS,
 and Windows.
 
-**Status:** repository and toolchain ready; no projects implemented yet.
+**Status:** Implemented projects: 00-hello-world.
 
 ## Visual Basic at a glance
 
@@ -38,6 +38,22 @@ and Windows.
 | Native CI | actions/setup-dotnet (10.0.x) |
 
 `make toolchain` verifies that the container and native toolchains are on this release line.
+
+| Tool | Use | Source |
+| :-- | :-- | :-- |
+| xUnit 2.9 (`dotnet test`) | Unit tests | NuGet, locked in each project's `packages.lock.json` |
+| Compiler + .NET analyzers | Lint: `TreatWarningsAsErrors`, `Option Strict On`, `AnalysisLevel` latest-recommended | the SDK |
+| `dotnet format` | Lint (`--verify-no-changes`) and format | the SDK (`make toolchain` prints its version) |
+
+Each project directory holds a solution, `global.json` (SDK 10.0, rolling forward within
+10.0), and `Directory.Build.props`. NuGet restores run with `--locked-mode`; Dependabot keeps
+the packages current. `make all` publishes a framework-dependent, single-file apphost (for
+example `00-hello-world/bin/dp-hello`, `.exe` on Windows), so running or installing a tool
+needs the .NET 10 runtime. The apphost finds it through `DOTNET_ROOT`, the registered
+install location (`/etc/dotnet/install_location` on Linux and macOS, written by the
+official installers), or the default location. If you installed .NET elsewhere (for example
+with Homebrew or `dotnet-install`), set `DOTNET_ROOT` or register the location; native CI
+does the latter because the black-box runner clears the environment.
 
 ## Layout
 
