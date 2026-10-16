@@ -1,14 +1,41 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+**Table of Contents** _generated with [DocToc](https://github.com/thlorenz/doctoc)_
+
+- [Low-Level Design (LLD) — Standard Terminal Hello World](#low-level-design-lld--standard-terminal-hello-world)
+  - [1. Source layout](#1-source-layout)
+  - [2. Data types](#2-data-types)
+    - [2.1 `ParsedArguments` (result of a successful scan)](#21-parsedarguments-result-of-a-successful-scan)
+    - [2.2 `GreetingSettings` (result of validation)](#22-greetingsettings-result-of-validation)
+    - [2.3 Error type](#23-error-type)
+  - [3. Module and function specifications](#3-module-and-function-specifications)
+    - [3.1 `ArgumentParser.Parse`](#31-argumentparserparse)
+    - [3.2 `Validator.Validate`](#32-validatorvalidate)
+    - [3.3 `Validator.ParseCount`](#33-validatorparsecount)
+    - [3.4 `Greeting.BuildLine` / `Greeting.BuildText`](#34-greetingbuildline--greetingbuildtext)
+    - [3.5 `Output.Encode` / `Output.Diagnostic` / `Output.WriteAll`](#35-outputencode--outputdiagnostic--outputwriteall)
+    - [3.6 `CommandLineTool.Run`](#36-commandlinetoolrun)
+    - [3.7 `Program.Main`](#37-programmain)
+  - [4. Algorithms](#4-algorithms)
+  - [5. Platform-specific details](#5-platform-specific-details)
+  - [6. Resource management](#6-resource-management)
+  - [7. Sequence of one invocation](#7-sequence-of-one-invocation)
+  - [8. Design-to-code checklist](#8-design-to-code-checklist)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Low-Level Design (LLD) — Standard Terminal Hello World
 
-| Field | Value |
-| :-- | :-- |
-| Project | `00-hello-world` |
-| Tools | dp-hello |
-| Implementation language | Visual Basic (VB.NET, .NET 10) |
-| Author | Brandon Perkins (with Claude Code) |
-| Version / date | 1.0 — 2026-10-13 |
-| Status | Approved |
-| Inputs | `hld.md`, `specs/SRS.md`, `shared/CLI-CONVENTIONS.md` |
+| Field                   | Value                                                 |
+| :---------------------- | :---------------------------------------------------- |
+| Project                 | `00-hello-world`                                      |
+| Tools                   | dp-hello                                              |
+| Implementation language | Visual Basic (VB.NET, .NET 10)                        |
+| Author                  | Brandon Perkins (with Claude Code)                    |
+| Version / date          | 1.0 — 2026-10-13                                      |
+| Status                  | Approved                                              |
+| Inputs                  | `hld.md`, `specs/SRS.md`, `shared/CLI-CONVENTIONS.md` |
 
 ## 1. Source layout
 
@@ -39,44 +66,48 @@
 ## 2. Data types
 
 ### 2.1 `ParsedArguments` (result of a successful scan)
-| Field | Type | Default | Constraint / invariant | SRS |
-| :-- | :-- | :-- | :-- | :-- |
-| `Action` | `ParseAction` (`Greet`, `Help`, `Version`) | `Greet` | For Help/Version all other fields are Nothing | FR-07, FR-08 |
-| `Name` | `OptionValue` | Nothing | The last `-n`/`--name` occurrence; unvalidated | FR-02, FR-06 |
-| `Count` | `OptionValue` | Nothing | The last `-c`/`--count` occurrence; unvalidated | FR-04, FR-06 |
-| `FirstOperand` | `String` | Nothing | The first operand, including the first token after `--` | FR-09 |
+
+| Field          | Type                                       | Default | Constraint / invariant                                  | SRS          |
+| :------------- | :----------------------------------------- | :------ | :------------------------------------------------------ | :----------- |
+| `Action`       | `ParseAction` (`Greet`, `Help`, `Version`) | `Greet` | For Help/Version all other fields are Nothing           | FR-07, FR-08 |
+| `Name`         | `OptionValue`                              | Nothing | The last `-n`/`--name` occurrence; unvalidated          | FR-02, FR-06 |
+| `Count`        | `OptionValue`                              | Nothing | The last `-c`/`--count` occurrence; unvalidated         | FR-04, FR-06 |
+| `FirstOperand` | `String`                                   | Nothing | The first operand, including the first token after `--` | FR-09        |
 
 `OptionValue` holds `Value` (verbatim, possibly empty) and `Spelling` (`-n`, `--name`, `-c`,
 or `--count`, as written; CONV-13 "option as written"). `ParseResult` holds either
 `Arguments` or `Failure`.
 
 ### 2.2 `GreetingSettings` (result of validation)
-| Field | Type | Default | Constraint / invariant | SRS |
-| :-- | :-- | :-- | :-- | :-- |
-| `Name` | `String` | `World` | Non-empty | FR-01, FR-02, FR-03 |
-| `Count` | `Integer` | 1 | 1 ≤ Count ≤ 1000 | FR-04, FR-05 |
+
+| Field   | Type      | Default | Constraint / invariant | SRS                 |
+| :------ | :-------- | :------ | :--------------------- | :------------------ |
+| `Name`  | `String`  | `World` | Non-empty              | FR-01, FR-02, FR-03 |
+| `Count` | `Integer` | 1       | 1 ≤ Count ≤ 1000       | FR-04, FR-05        |
 
 `ValidationResult` holds either `Settings` or `Failure`. `RunResult` holds
 `StandardOutput` and `StandardError` (byte arrays) and `ExitCode`.
 
 ### 2.3 Error type
+
 `UsageError.Message` is the diagnostic without the prefix. `Output.Diagnostic` renders it as
 `dp-hello: <Message>` LF `Try 'dp-hello --help' for more information.` LF.
 
-| Factory | Diagnostic (first stderr line) | Exit status |
-| :-- | :-- | :-- |
-| `InvalidOption(letter)` | `dp-hello: invalid option -- 'x'` | 2 |
-| `UnrecognizedOption(token)` | `dp-hello: unrecognized option '--nme'` | 2 |
-| `ShortOptionRequiresArgument(letter)` | `dp-hello: option requires an argument -- 'n'` | 2 |
-| `LongOptionRequiresArgument(name)` | `dp-hello: option '--name' requires an argument` | 2 |
-| `ArgumentNotAllowed(name)` | `dp-hello: option '--help' doesn't allow an argument` | 2 |
-| `InvalidArgument(value, spelling)` | `dp-hello: invalid argument '0' for '--count'` | 2 |
-| `ExtraOperand(operand)` | `dp-hello: extra operand 'extra'` | 2 |
-| (write failure, not a `UsageError`) | none | 141 (CONV-25: unspecified) |
+| Factory                               | Diagnostic (first stderr line)                        | Exit status                |
+| :------------------------------------ | :---------------------------------------------------- | :------------------------- |
+| `InvalidOption(letter)`               | `dp-hello: invalid option -- 'x'`                     | 2                          |
+| `UnrecognizedOption(token)`           | `dp-hello: unrecognized option '--nme'`               | 2                          |
+| `ShortOptionRequiresArgument(letter)` | `dp-hello: option requires an argument -- 'n'`        | 2                          |
+| `LongOptionRequiresArgument(name)`    | `dp-hello: option '--name' requires an argument`      | 2                          |
+| `ArgumentNotAllowed(name)`            | `dp-hello: option '--help' doesn't allow an argument` | 2                          |
+| `InvalidArgument(value, spelling)`    | `dp-hello: invalid argument '0' for '--count'`        | 2                          |
+| `ExtraOperand(operand)`               | `dp-hello: extra operand 'extra'`                     | 2                          |
+| (write failure, not a `UsageError`)   | none                                                  | 141 (CONV-25: unspecified) |
 
 ## 3. Module and function specifications
 
 ### 3.1 `ArgumentParser.Parse`
+
 - **Signature:** `Public Function Parse(args As IReadOnlyList(Of String)) As ParseResult`
 - **Responsibility:** recognize option syntax from left to right.
 - **Preconditions:** `args` is not Nothing (excludes the program name).
@@ -101,6 +132,7 @@ or `--count`, as written; CONV-13 "option as written"). `ParseResult` holds eith
 - **Unit tests:** `ArgumentParserTests.*` (15 methods, 44 cases).
 
 ### 3.2 `Validator.Validate`
+
 - **Signature:** `Public Function Validate(arguments As ParsedArguments) As ValidationResult`
 - **Responsibility:** turn a Greet parse result into settings.
 - **Errors (in this order):** `ExtraOperand(FirstOperand)`; `InvalidArgument('', spelling)`
@@ -110,6 +142,7 @@ or `--count`, as written; CONV-13 "option as written"). `ParseResult` holds eith
 - **Unit tests:** `ValidatorTests.*`, `CommandLineToolTests.OnlyTheWinningValueIsValidated`.
 
 ### 3.3 `Validator.ParseCount`
+
 - **Signature:** `Public Function ParseCount(text As String) As Integer?`
 - **Algorithm:** empty → Nothing; every char must be `0`–`9` (ASCII only; Unicode digits are
   rejected); accumulate `value = Min(value * 10 + digit, 1001)` so any length is safe;
@@ -119,12 +152,14 @@ or `--count`, as written; CONV-13 "option as written"). `ParseResult` holds eith
   `ValidatorTests.InvalidCountsAreRejectedWithTheValueAndSpelling`.
 
 ### 3.4 `Greeting.BuildLine` / `Greeting.BuildText`
+
 - **Signatures:** `BuildLine(name As String) As String`; `BuildText(name As String, count As Integer) As String`
 - **Responsibility:** pure greeting construction: `"Hello, " & name & "!" & vbLf`, repeated
   `count` times (empty for count ≤ 0) with a pre-sized `StringBuilder`.
 - **Satisfies:** FR-01, FR-02, FR-04, NFR-05. **Unit tests:** `GreetingTests.*`.
 
 ### 3.5 `Output.Encode` / `Output.Diagnostic` / `Output.WriteAll`
+
 - `Encode(text) As Byte()`: UTF-8 without BOM; unpaired surrogates become U+FFFD (no throw).
 - `Diagnostic(failure As UsageError) As String`: the two CONV-13/CONV-14 lines, LF-terminated.
 - `WriteAll(stream As Stream, data As Byte()) As Boolean`: write and flush; returns False on
@@ -133,6 +168,7 @@ or `--count`, as written; CONV-13 "option as written"). `ParseResult` holds eith
 - **Unit tests:** `OutputTests.*`.
 
 ### 3.6 `CommandLineTool.Run`
+
 - **Signature:** `Public Function Run(args As IReadOnlyList(Of String)) As RunResult`
 - **Algorithm:** parse; on failure → `(empty, Encode(Diagnostic(e)), 2)`; Help/Version →
   `(Encode(HelpText or VersionText), empty, 0)`; otherwise validate (failure as above) and
@@ -141,6 +177,7 @@ or `--count`, as written; CONV-13 "option as written"). `ParseResult` holds eith
 - **Unit tests:** `CommandLineToolTests.*`.
 
 ### 3.7 `Program.Main`
+
 - **Signature:** `Public Function Main(args As String()) As Integer`
 - **Algorithm:** `Run(args)`; write `StandardError` to `Console.OpenStandardError()`, then
   `StandardOutput` to `Console.OpenStandardOutput()`; return 141 if the stdout write failed,
@@ -148,6 +185,7 @@ or `--count`, as written; CONV-13 "option as written"). `ParseResult` holds eith
 - **Satisfies:** CONV-03, CONV-25, CONV-26 (stdin is never opened). **Tests:** P01–P10.
 
 ## 4. Algorithms
+
 The only non-trivial algorithm is the left-to-right scan (§3.1). It follows GNU `getopt_long`
 semantics restricted to CONV-07 … CONV-12, with one deliberate difference required by
 CONV-12: operands are never errors during the scan. Because both short options take a
@@ -157,20 +195,22 @@ of using `Integer.TryParse`, which would accept signs, white space, and non-ASCI
 
 ## 5. Platform-specific details
 
-| Concern | Linux | macOS | Windows | Abstraction |
-| :-- | :-- | :-- | :-- | :-- |
-| Arguments | `argv` bytes decoded as UTF-8 by the runtime | same as Linux | UTF-16 command line (`GetCommandLineW`) | `String()` in `Main` |
-| stdout/stderr | fd 1/2, raw | fd 1/2, raw | `STD_OUTPUT_HANDLE`/`STD_ERROR_HANDLE`, no text mode | `Console.OpenStandard*` + `Output.WriteAll` |
-| Broken pipe | `IOException` (the runtime ignores SIGPIPE) | same | `IOException` (`ERROR_NO_DATA`) | `Output.WriteAll` returns False |
-| Executable | `bin/dp-hello` | `bin/dp-hello` | `bin/dp-hello.exe` | `$(EXE)` in the Makefile |
-| Runtime lookup | `DOTNET_ROOT`, `/etc/dotnet/install_location`, `/usr/share/dotnet` | same, default `/usr/local/share/dotnet` | `DOTNET_ROOT`, registry, `C:\Program Files\dotnet` | the .NET apphost |
+| Concern        | Linux                                                              | macOS                                   | Windows                                              | Abstraction                                 |
+| :------------- | :----------------------------------------------------------------- | :-------------------------------------- | :--------------------------------------------------- | :------------------------------------------ |
+| Arguments      | `argv` bytes decoded as UTF-8 by the runtime                       | same as Linux                           | UTF-16 command line (`GetCommandLineW`)              | `String()` in `Main`                        |
+| stdout/stderr  | fd 1/2, raw                                                        | fd 1/2, raw                             | `STD_OUTPUT_HANDLE`/`STD_ERROR_HANDLE`, no text mode | `Console.OpenStandard*` + `Output.WriteAll` |
+| Broken pipe    | `IOException` (the runtime ignores SIGPIPE)                        | same                                    | `IOException` (`ERROR_NO_DATA`)                      | `Output.WriteAll` returns False             |
+| Executable     | `bin/dp-hello`                                                     | `bin/dp-hello`                          | `bin/dp-hello.exe`                                   | `$(EXE)` in the Makefile                    |
+| Runtime lookup | `DOTNET_ROOT`, `/etc/dotnet/install_location`, `/usr/share/dotnet` | same, default `/usr/local/share/dotnet` | `DOTNET_ROOT`, registry, `C:\Program Files\dotnet`   | the .NET apphost                            |
 
 ## 6. Resource management
+
 No files, sockets, locks, or processes. The two standard streams are opened once each in
 `Program.Main` inside `Using` blocks, so they are flushed and released on every path. The
 largest buffer is the greeting text: 1000 × (9 + name length) characters, encoded once.
 
 ## 7. Sequence of one invocation
+
 P06, `dp-hello -c2 -n Ken`: `Main({"-c2", "-n", "Ken"})` → `Run` → `Parse`: `-c2` is a short
 option `c` with attached value `2` → `Count = ("2", "-c")`; `-n` takes the next token `Ken`
 → `Name = ("Ken", "-n")`; end → `Greet` → `Validate`: no operand, name non-empty,
@@ -179,12 +219,12 @@ option `c` with attached value `2` → `Count = ("2", "-c")`; `-n` takes the nex
 
 ## 8. Design-to-code checklist
 
-| HLD component | LLD section | Source file(s) | Unit-test file(s) |
-| :-- | :-- | :-- | :-- |
-| `ArgumentParser` | §3.1 | `src/DpHello/ArgumentParser.vb`, `ParsedArguments.vb` | `ArgumentParserTests.vb` |
-| `Validator` | §3.2, §3.3 | `src/DpHello/Validator.vb` | `ValidatorTests.vb` |
-| `Greeting` | §3.4 | `src/DpHello/Greeting.vb` | `GreetingTests.vb` |
-| `UsageError` | §2.3 | `src/DpHello/UsageError.vb` | `ArgumentParserTests.vb`, `ValidatorTests.vb` |
-| `Output` | §3.5 | `src/DpHello/Output.vb` | `OutputTests.vb` |
-| `CommandLineTool` | §3.6 | `src/DpHello/CommandLineTool.vb` | `CommandLineToolTests.vb` |
-| `Program` | §3.7 | `src/DpHello.Cli/Program.vb` | black-box P01–P10 |
+| HLD component     | LLD section | Source file(s)                                        | Unit-test file(s)                             |
+| :---------------- | :---------- | :---------------------------------------------------- | :-------------------------------------------- |
+| `ArgumentParser`  | §3.1        | `src/DpHello/ArgumentParser.vb`, `ParsedArguments.vb` | `ArgumentParserTests.vb`                      |
+| `Validator`       | §3.2, §3.3  | `src/DpHello/Validator.vb`                            | `ValidatorTests.vb`                           |
+| `Greeting`        | §3.4        | `src/DpHello/Greeting.vb`                             | `GreetingTests.vb`                            |
+| `UsageError`      | §2.3        | `src/DpHello/UsageError.vb`                           | `ArgumentParserTests.vb`, `ValidatorTests.vb` |
+| `Output`          | §3.5        | `src/DpHello/Output.vb`                               | `OutputTests.vb`                              |
+| `CommandLineTool` | §3.6        | `src/DpHello/CommandLineTool.vb`                      | `CommandLineToolTests.vb`                     |
+| `Program`         | §3.7        | `src/DpHello.Cli/Program.vb`                          | black-box P01–P10                             |
