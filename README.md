@@ -1,3 +1,19 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+**Table of Contents** _generated with [DocToc](https://github.com/thlorenz/doctoc)_
+
+- [vb](#vb)
+  - [Visual Basic at a glance](#visual-basic-at-a-glance)
+  - [Toolchain](#toolchain)
+  - [Layout](#layout)
+  - [Development](#development)
+  - [Implementing a project](#implementing-a-project)
+  - [Contributing](#contributing)
+  - [License](#license)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/dialectic-playground/.github/main/assets/vb/dist/logo-dark.svg">
@@ -20,30 +36,30 @@ and Windows.
 
 ## Visual Basic at a glance
 
-| Aspect | Visual Basic |
-| :-- | :-- |
-| File extension | `.vb` |
-| CLI classification | Included |
-| Image category | First-Class |
-| Access to OS primitives | Medium-High (.NET platform hooks) |
-| Entry-point mechanism | Runtime initializes and maps arguments to Main function |
+| Aspect                  | Visual Basic                                            |
+| :---------------------- | :------------------------------------------------------ |
+| File extension          | `.vb`                                                   |
+| CLI classification      | Included                                                |
+| Image category          | First-Class                                             |
+| Access to OS primitives | Medium-High (.NET platform hooks)                       |
+| Entry-point mechanism   | Runtime initializes and maps arguments to Main function |
 
 ## Toolchain
 
-| | |
-| :-- | :-- |
-| Release line | VB.NET on .NET 10 (LTS) |
-| Build / package tool | dotnet CLI (NuGet) |
-| Container image | `mcr.microsoft.com/dotnet/sdk:10.0`, pinned by digest ([`Containerfile`](Containerfile)) |
-| Native CI | actions/setup-dotnet (10.0.x) |
+|                      |                                                                                          |
+| :------------------- | :--------------------------------------------------------------------------------------- |
+| Release line         | VB.NET on .NET 10 (LTS)                                                                  |
+| Build / package tool | dotnet CLI (NuGet)                                                                       |
+| Container image      | `mcr.microsoft.com/dotnet/sdk:10.0`, pinned by digest ([`Containerfile`](Containerfile)) |
+| Native CI            | actions/setup-dotnet (10.0.x)                                                            |
 
 `make toolchain` verifies that the container and native toolchains are on this release line.
 
-| Tool | Use | Source |
-| :-- | :-- | :-- |
-| xUnit 2.9 (`dotnet test`) | Unit tests | NuGet, locked in each project's `packages.lock.json` |
-| Compiler + .NET analyzers | Lint: `TreatWarningsAsErrors`, `Option Strict On`, `AnalysisLevel` latest-recommended | the SDK |
-| `dotnet format` | Lint (`--verify-no-changes`) and format | the SDK (`make toolchain` prints its version) |
+| Tool                      | Use                                                                                   | Source                                               |
+| :------------------------ | :------------------------------------------------------------------------------------ | :--------------------------------------------------- |
+| xUnit 2.9 (`dotnet test`) | Unit tests                                                                            | NuGet, locked in each project's `packages.lock.json` |
+| Compiler + .NET analyzers | Lint: `TreatWarningsAsErrors`, `Option Strict On`, `AnalysisLevel` latest-recommended | the SDK                                              |
+| `dotnet format`           | Lint (`--verify-no-changes`) and format                                               | the SDK (`make toolchain` prints its version)        |
 
 Each project directory holds a solution, `global.json` (SDK 10.0, rolling forward within
 10.0), and `Directory.Build.props`. NuGet restores run with `--locked-mode`; Dependabot keeps
@@ -57,14 +73,14 @@ does the latter because the black-box runner clears the environment.
 
 ## Layout
 
-| Path | Contents |
-| :--- | :--- |
+| Path                                  | Contents                                                                                                          |
+| :------------------------------------ | :---------------------------------------------------------------------------------------------------------------- |
 | `00-hello-world/` … `10-sys-monitor/` | One workspace per curriculum project: `Makefile` (with `DP_*` hooks), HLD, LLD, RTM, master test plan, and `src/` |
-| `sdlc-curriculum/` | The curriculum, as a git submodule pinned to a release tag |
-| `Makefile` | `make check` (repository, toolchain, implemented projects), `toolchain`, `projects`, `roundtrip` |
-| `Containerfile`, `.devcontainer/` | The toolchain image and the matching dev container |
-| `tools/dp-run`, `tools/container.mk` | Shared container tooling (copies of the canonical files in `dialectic-playground/.github`) |
-| `.github/workflows/ci.yml` | CI: container and native (Linux, macOS, Windows) `make` targets, shared-tooling check, DCO |
+| `sdlc-curriculum/`                    | The curriculum, as a git submodule pinned to a release tag                                                        |
+| `Makefile`                            | `make check` (repository, toolchain, implemented projects), `toolchain`, `projects`, `roundtrip`                  |
+| `Containerfile`, `.devcontainer/`     | The toolchain image and the matching dev container                                                                |
+| `tools/dp-run`, `tools/container.mk`  | Shared container tooling (copies of the canonical files in `dialectic-playground/.github`)                        |
+| `.github/workflows/ci.yml`            | CI: container and native (Linux, macOS, Windows) `make` targets, shared-tooling check, DCO                        |
 
 ## Development
 
